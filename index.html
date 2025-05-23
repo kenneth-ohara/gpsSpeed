@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Speed Tracker</title>
+    <title>Speed & Distance Tracker</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -21,35 +21,80 @@
             padding: 20px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        .speed {
-            font-size: 3em;
-            color: #4CAF50;
+        .speed, .distance {
+            font-size: 2em;
+            margin-top: 10px;
         }
         .status {
             margin-top: 10px;
             font-size: 1.2em;
             color: #888;
         }
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2em;
+        }
+        .button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Your Speed</h1>
+        <h1>Speed & Distance Tracker</h1>
         <div class="speed">0 km/h</div>
-        <div class="status">Waiting for GPS data...</div>
+        <div class="distance">Distance: 0 km</div>
+        <div class="status">Press Start to Begin</div>
+        <button class="button" id="startButton">Start</button>
     </div>
 
     <script>
-        // Function to update speed on the page
-        function updateSpeed(position) {
+        let tracking = false;
+        let lastPosition = null;
+        let totalDistance = 0;
+
+        // Haversine formula to calculate the distance between two lat/lng points
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the Earth in km
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c; // Distance in km
+            return distance;
+        }
+
+        // Function to update the speed and distance
+        function updateTracking(position) {
+            if (lastPosition) {
+                const distance = calculateDistance(
+                    lastPosition.latitude, lastPosition.longitude,
+                    position.coords.latitude, position.coords.longitude
+                );
+                totalDistance += distance; // Update total distance
+                document.querySelector('.distance').textContent = `Distance: ${(totalDistance).toFixed(2)} km`;
+            }
+
             const speed = position.coords.speed; // Speed in meters per second
             if (speed !== null) {
                 const speedInKmh = (speed * 3.6).toFixed(2); // Convert to km/h
                 document.querySelector('.speed').textContent = `${speedInKmh} km/h`;
-                document.querySelector('.status').textContent = 'GPS data received';
-            } else {
-                document.querySelector('.status').textContent = 'No speed data available';
             }
+
+            lastPosition = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+            };
         }
 
         // Function to handle error in geolocation
@@ -57,16 +102,11 @@
             document.querySelector('.status').textContent = 'Error: ' + error.message;
         }
 
-        // Check if geolocation is available and get the speed
-        if ("geolocation" in navigator) {
-            navigator.geolocation.watchPosition(updateSpeed, errorHandler, {
-                enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 5000
-            });
-        } else {
-            document.querySelector('.status').textContent = 'Geolocation not supported';
-        }
-    </script>
-</body>
-</html>
+        // Function to start tracking
+        function startTracking() {
+            tracking = true;
+            document.querySelector('#startButton').textContent = 'Stop';
+            document.querySelector('.status').textContent = 'Tracking...';
+            totalDistance = 0; // Reset distance when starting new tracking
+            lastPosition = null; // Reset the last known position
+            navigator.geolocation.watchPosition(updateTracking, errorHandler, {
