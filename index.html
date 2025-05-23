@@ -59,6 +59,7 @@
         let tracking = false;
         let lastPosition = null;
         let totalDistance = 0;
+        let watchID = null; // Variable to store the geolocation watch ID
 
         // Haversine formula to calculate the distance between two lat/lng points
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -109,4 +110,32 @@
             document.querySelector('.status').textContent = 'Tracking...';
             totalDistance = 0; // Reset distance when starting new tracking
             lastPosition = null; // Reset the last known position
-            navigator.geolocation.watchPosition(updateTracking, errorHandler, {
+            watchID = navigator.geolocation.watchPosition(updateTracking, errorHandler, {
+                enableHighAccuracy: true,
+                maximumAge: 1000,
+                timeout: 5000
+            });
+        }
+
+        // Function to stop tracking
+        function stopTracking() {
+            tracking = false;
+            document.querySelector('#startButton').textContent = 'Start';
+            document.querySelector('.status').textContent = 'Tracking stopped';
+            if (watchID !== null) {
+                navigator.geolocation.clearWatch(watchID); // Stop the geolocation watch
+                watchID = null;
+            }
+        }
+
+        // Event listener for the start/stop button
+        document.querySelector('#startButton').addEventListener('click', function() {
+            if (tracking) {
+                stopTracking();
+            } else {
+                startTracking();
+            }
+        });
+    </script>
+</body>
+</html>
