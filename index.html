@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .speed {
+            font-size: 3em;
+            color: #4CAF50;
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 1.2em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Your Speed</h1>
+        <div class="speed">0 km/h</div>
+        <div class="status">Waiting for GPS data...</div>
+    </div>
+
+    <script>
+        // Function to update speed on the page
+        function updateSpeed(position) {
+            const speed = position.coords.speed; // Speed in meters per second
+            if (speed !== null) {
+                const speedInKmh = (speed * 3.6).toFixed(2); // Convert to km/h
+                document.querySelector('.speed').textContent = `${speedInKmh} km/h`;
+                document.querySelector('.status').textContent = 'GPS data received';
+            } else {
+                document.querySelector('.status').textContent = 'No speed data available';
+            }
+        }
+
+        // Function to handle error in geolocation
+        function errorHandler(error) {
+            document.querySelector('.status').textContent = 'Error: ' + error.message;
+        }
+
+        // Check if geolocation is available and get the speed
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(updateSpeed, errorHandler, {
+                enableHighAccuracy: true,
+                maximumAge: 1000,
+                timeout: 5000
+            });
+        } else {
+            document.querySelector('.status').textContent = 'Geolocation not supported';
+        }
+    </script>
+</body>
+</html>
