@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Speed & Distance Tracker</title>
+  <title>Trip Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
     #controls { padding: 10px; }
     button { padding: 10px 20px; font-size: 1em; margin: 5px; }
-    #speed, #distance { font-size: 1.5em; margin: 10px 0; }
+    #speed, #distance, #timer { font-size: 1.2em; margin: 10px 0; }
+    #summary { padding: 10px; font-size: 1.1em; display: none; text-align: left; }
     #map { height: 50vh; }
   </style>
 </head>
@@ -22,8 +20,16 @@
     <button id="stopBtn" disabled>Stop</button>
     <div id="speed">Speed: 0 km/h</div>
     <div id="distance">Distance: 0 km</div>
+    <div id="timer">Time: 00:00</div>
   </div>
   <div id="map"></div>
+  <div id="summary">
+    <h3>Trip Summary</h3>
+    <p id="sumTime"></p>
+    <p id="sumDistance"></p>
+    <p id="sumMaxSpeed"></p>
+    <p id="sumAvgSpeed"></p>
+  </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
@@ -31,12 +37,18 @@
     let watchId;
     let velocity = 0;
     let distance = 0;
-    let lastGPSUpdate = 0;
+    let maxSpeed = 0;
+    let speedSamples = [];
     let lastPosition = null;
+    let lastGPSUpdate = 0;
     let lastAccTime = null;
+
+    let startTime = null;
+    let timerInterval = null;
 
     const speedEl = document.getElementById("speed");
     const distanceEl = document.getElementById("distance");
+    const timerEl = document.getElementById("timer");
 
     // Initialize map
     const map = L.map("map").setView([0, 0], 13);
@@ -46,14 +58,21 @@
 
     let path = L.polyline([], { color: "blue" }).addTo(map);
 
+    function formatTime(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const sec = String(totalSec % 60).padStart(2, '0');
+      return `${min}:${sec}`;
+    }
+
     function updateDisplay() {
       speedEl.textContent = `Speed: ${(velocity * 3.6).toFixed(2)} km/h`;
       distanceEl.textContent = `Distance: ${(distance / 1000).toFixed(3)} km`;
     }
 
     function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371000; // meters
-      const toRad = angle => angle * (Math.PI / 180);
+      const R = 6371000;
+      const toRad = deg => deg * (Math.PI / 180);
       const dLat = toRad(lat2 - lat1);
       const dLon = toRad(lon2 - lon1);
       const a = Math.sin(dLat / 2) ** 2 +
@@ -64,15 +83,21 @@
     }
 
     function startTracking() {
-      if (!("geolocation" in navigator)) {
-        alert("Geolocation not supported.");
-        return;
-      }
-
       watching = true;
       distance = 0;
+      velocity = 0;
+      maxSpeed = 0;
+      speedSamples = [];
       lastPosition = null;
       path.setLatLngs([]);
+      document.getElementById("summary").style.display = "none";
+
+      // Timer
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        timerEl.textContent = `Time: ${formatTime(elapsed)}`;
+      }, 1000);
 
       // GPS
       watchId = navigator.geolocation.watchPosition(
@@ -90,12 +115,14 @@
               latitude,
               longitude
             );
-            if (d < 100) distance += d; // filter large jumps
+            if (d < 100) distance += d;
             lastPosition = pos.coords;
           }
 
           if (speed !== null && !isNaN(speed)) {
             velocity = speed;
+            speedSamples.push(speed);
+            if (speed > maxSpeed) maxSpeed = speed;
             lastGPSUpdate = Date.now();
           }
 
@@ -112,6 +139,7 @@
 
       // Accelerometer
       window.addEventListener("devicemotion", onMotion);
+
       document.getElementById("startBtn").disabled = true;
       document.getElementById("stopBtn").disabled = false;
     }
@@ -119,9 +147,24 @@
     function stopTracking() {
       if (watchId) navigator.geolocation.clearWatch(watchId);
       window.removeEventListener("devicemotion", onMotion);
-      watching = false;
+      clearInterval(timerInterval);
+      const endTime = Date.now();
+      const durationMs = endTime - startTime;
+
+      // Summary
+      const avgSpeed = speedSamples.length
+        ? speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length
+        : 0;
+
+      document.getElementById("sumTime").textContent = `Time: ${formatTime(durationMs)}`;
+      document.getElementById("sumDistance").textContent = `Distance: ${(distance / 1000).toFixed(3)} km`;
+      document.getElementById("sumMaxSpeed").textContent = `Max Speed: ${(maxSpeed * 3.6).toFixed(2)} km/h`;
+      document.getElementById("sumAvgSpeed").textContent = `Avg Speed: ${(avgSpeed * 3.6).toFixed(2)} km/h`;
+      document.getElementById("summary").style.display = "block";
+
       velocity = 0;
       updateDisplay();
+
       document.getElementById("startBtn").disabled = false;
       document.getElementById("stopBtn").disabled = true;
     }
