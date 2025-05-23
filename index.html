@@ -58,84 +58,76 @@
     <script>
         let tracking = false;
         let lastPosition = null;
-        let totalDistance = 0;
-        let watchID = null; // Variable to store the geolocation watch ID
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hybrid Speed Tracker</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    h1 { font-size: 2em; }
+    #speed { font-size: 3em; color: green; }
+  </style>
+</head>
+<body>
+  <h1>Estimated Speed</h1>
+  <div id="speed">0 km/h</div>
 
-        // Haversine formula to calculate the distance between two lat/lng points
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Radius of the Earth in km
-            const dLat = (lat2 - lat1) * (Math.PI / 180);
-            const dLon = (lon2 - lon1) * (Math.PI / 180);
-            const a =
-                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distance = R * c; // Distance in km
-            return distance;
-        }
+  <script>
+    let velocity = 0; // in m/s
+    let lastAccTime = null;
+    let lastGPSUpdate = 0;
+    let useGPS = false;
 
-        // Function to update the speed and distance
-        function updateTracking(position) {
-            if (lastPosition) {
-                const distance = calculateDistance(
-                    lastPosition.latitude, lastPosition.longitude,
-                    position.coords.latitude, position.coords.longitude
-                );
-                totalDistance += distance; // Update total distance
-                document.querySelector('.distance').textContent = `Distance: ${(totalDistance).toFixed(2)} km`;
+    // Update display
+    function updateSpeedDisplay() {
+      const speedKmh = (velocity * 3.6).toFixed(2);
+      document.getElementById('speed').textContent = `${speedKmh} km/h`;
+    }
+
+    // Accelerometer logic
+    if (window.DeviceMotionEvent) {
+      window.addEventListener("devicemotion", (event) => {
+        const currentTime = Date.now();
+
+        if (lastAccTime) {
+          const dt = (currentTime - lastAccTime) / 1000;
+          const acc = event.acceleration;
+
+          if (acc && acc.x !== null && acc.y !== null && acc.z !== null) {
+            const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2) - 9.81; // remove gravity
+            if (Math.abs(totalAcc) > 0.2) { // noise filter
+              velocity += totalAcc * dt;
+              if (velocity < 0) velocity = 0;
+              if (currentTime - lastGPSUpdate > 3000) updateSpeedDisplay(); // only update if GPS hasn't recently
             }
-
-            const speed = position.coords.speed; // Speed in meters per second
-            if (speed !== null) {
-                const speedInKmh = (speed * 3.6).toFixed(2); // Convert to km/h
-                document.querySelector('.speed').textContent = `${speedInKmh} km/h`;
-            }
-
-            lastPosition = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude
-            };
+          }
         }
 
-        // Function to handle error in geolocation
-        function errorHandler(error) {
-            document.querySelector('.status').textContent = 'Error: ' + error.message;
-        }
+        lastAccTime = currentTime;
+      });
+    }
 
-        // Function to start tracking
-        function startTracking() {
-            tracking = true;
-            document.querySelector('#startButton').textContent = 'Stop';
-            document.querySelector('.status').textContent = 'Tracking...';
-            totalDistance = 0; // Reset distance when starting new tracking
-            lastPosition = null; // Reset the last known position
-            watchID = navigator.geolocation.watchPosition(updateTracking, errorHandler, {
-                enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 5000
-            });
+    // GPS logic
+    if ("geolocation" in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          const speed = pos.coords.speed;
+          if (speed !== null && !isNaN(speed)) {
+            velocity = speed;
+            lastGPSUpdate = Date.now();
+            updateSpeedDisplay();
+          }
+        },
+        (err) => console.warn("GPS error", err),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 5000,
         }
-
-        // Function to stop tracking
-        function stopTracking() {
-            tracking = false;
-            document.querySelector('#startButton').textContent = 'Start';
-            document.querySelector('.status').textContent = 'Tracking stopped';
-            if (watchID !== null) {
-                navigator.geolocation.clearWatch(watchID); // Stop the geolocation watch
-                watchID = null;
-            }
-        }
-
-        // Event listener for the start/stop button
-        document.querySelector('#startButton').addEventListener('click', function() {
-            if (tracking) {
-                stopTracking();
-            } else {
-                startTracking();
-            }
-        });
-    </script>
+      );
+    } else {
+      alert("Geolocation not supported on this device.");
+    }
+  </script>
 </body>
 </html>
